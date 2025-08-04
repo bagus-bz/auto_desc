@@ -52,5 +52,5 @@ typing-extensions==4.14.1
 tzdata==2025.2
 urllib3==2.5.0
 wrapt==1.17.2
-yandex_cloud_ml_sdk
+yandex-cloud-ml-sdk
 yandexcloud==0.353.0
