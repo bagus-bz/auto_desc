@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import requests
 import random
+import time
 
 import yandex_cloud_ml_sdk
 from yandex_cloud_ml_sdk import YCloudML
@@ -52,7 +53,7 @@ with col1:
             st.session_state['subset_df'] = filled_df.sample(n=min(10, len(filled_df)), random_state=random.randint(0, 100000))
             st.session_state['site_input'] = ''
             st.session_state['last_dropdown_site'] = ''
-            st.session_state['dropdown_site'] = ''  # <-- This resets the selectbox
+            st.session_state['dropdown_site'] = ''
 
     with col_dropdown:
         selected_option = st.selectbox(
@@ -83,21 +84,24 @@ with col1:
             }
             data = {"url": site}
             try:
+                start_time = time.perf_counter()
                 resp = requests.post("https://r.jina.ai/", headers=headers, json=data, timeout=10)
                 resp.raise_for_status()
                 md_text = resp.text
+                elapsed = time.perf_counter() - start_time
                 st.session_state['jina_md'] = md_text
+                st.session_state['jina_time'] = elapsed
             except Exception as e:
                 st.session_state['jina_md'] = f"Ошибка: {e}"
+                st.session_state['jina_time'] = None
         else:
             st.session_state['jina_md'] = 'Пожалуйста, введите URL сайта.'
+            st.session_state['jina_time'] = None
 
 with col2:
     md_text = st.session_state.get('jina_md', '')
     st.text_area('Markdown от Jina Reader API', value=md_text, height=350, disabled=True)
-    # st.markdown(st.session_state.get('jina_md', ''))  # Можно раскомментировать для Markdown, но без скролла
-    # Примерный лимит контекста для yandexgpt-lite (8000 символов)
-    # Обрезаем по 'Links/Buttons:' если есть
+    jina_time = st.session_state.get('jina_time', None)
     links_phrase = 'Links/Buttons:'
     if links_phrase in md_text:
         md_clean = md_text.split(links_phrase, 1)[0]
@@ -105,20 +109,26 @@ with col2:
         md_clean = md_text
     if md_clean and model:
         tokens_count = len(model.tokenize(md_text))
-        col_a, col_b, col_c = st.columns([0.6, 0.2, 0.2], gap='small')
-        with col_a:
+        col_timer, col_tokens, col_ygpt, col_qwen = st.columns([0.15, 0.45, 0.2, 0.2], gap='small')
+        with col_timer:
+            if jina_time is not None:
+                st.badge(
+                    f"{jina_time:.3f}s",
+                    icon=":material/timer:"
+                )
+        with col_tokens:
             st.badge(
                 f"Токенов до раздела\nLinks/Buttons: {tokens_count}",
                 color='orange',
                 icon=":material/link:"
             )
-        with col_b:
+        with col_ygpt:
             st.badge(
                 "YandexGPT",
                 color='green' if tokens_count <= 32000 else 'red',
                 icon=":material/check_circle:" if tokens_count <= 32000 else ':material/block:'
             )
-        with col_c:
+        with col_qwen:
             st.badge(
                 "Qwen3 235B",
                 color='green' if tokens_count <= 256000 else 'red',
@@ -147,17 +157,25 @@ with col3:
         else:
             try:
                 user_prompt_filled = user_prompt.replace('{desc}', desc)
+                start_time = time.perf_counter()
                 result = model.configure(temperature=1).run([
                     {"role": "system", "text": sys_prompt},
                     {"role": "user",   "text": user_prompt_filled}
                 ])
+                elapsed = time.perf_counter() - start_time
                 gpt_text = result[0].text if result and hasattr(result[0], 'text') else str(result)
                 st.session_state['gpt_resp'] = gpt_text
+                st.session_state['gpt_time'] = elapsed
             except Exception as e:
                 st.session_state['gpt_resp'] = f"Ошибка YandexGPT: {e}"
+                st.session_state['gpt_time'] = None
         if error_msg:
             st.session_state['gpt_resp'] = error_msg
+            st.session_state['gpt_time'] = None
 
 with col4:
     st.text_area('Ответ от YandexGPT', value=st.session_state.get('gpt_resp', ''), height=350, disabled=True)
+    gpt_time = st.session_state.get('gpt_time', None)
+    if gpt_time is not None:
+        st.badge(f"{gpt_time:.3f}s", icon=":material/timer:")
     # st.markdown(st.session_state.get('gpt_resp', ''))  # Можно раскомментировать для Markdown, но без скролла 
