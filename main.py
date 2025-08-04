@@ -7,7 +7,7 @@ import yandex_cloud_ml_sdk
 from yandex_cloud_ml_sdk import YCloudML
 from yandex_cloud_ml_sdk.auth import IAMTokenAuth
 
-st.set_page_config(page_title="Генератор описаний поставщика", layout="wide")
+st.set_page_config(page_title="Генератор описаний поставщика", layout="wide", page_icon="🤖")
 
 # --- Загрузка данных ---
 df = pd.read_csv('df_Company.csv')
@@ -91,7 +91,7 @@ with col2:
         md_clean = md_text
     if md_clean and model:
         tokens_count = len(model.tokenize(md_text))
-        col_a, col_b, col_c = st.columns([0.6, 0.2, 0.2], gap=None)
+        col_a, col_b, col_c = st.columns([0.6, 0.2, 0.2], gap='small')
         with col_a:
             st.badge(
                 f"Токенов до раздела\nLinks/Buttons: {tokens_count}",
@@ -100,7 +100,7 @@ with col2:
             )
         with col_b:
             st.badge(
-                "YGPT-Lite",
+                "YandexGPT",
                 color='green' if tokens_count <= 32000 else 'red',
                 icon=":material/check_circle:" if tokens_count <= 32000 else ':material/block:'
             )
