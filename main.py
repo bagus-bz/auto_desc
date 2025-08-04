@@ -29,6 +29,15 @@ col1, col2 = st.columns([2,3])
 
 # --- Верхний ряд: Информация, выбор сайта, кнопка "В Markdown" ---
 with col1:
+    # Настройки YandexGPT
+    YC_FOLDER_ID = 'b1g1u3uo289nf62q3n08'
+    YC_IAM_TOKEN = st.text_input('Токен YandexGPT', value='', type='password')
+    if YC_IAM_TOKEN:
+        sdk = YCloudML(folder_id=YC_FOLDER_ID.strip(), auth=IAMTokenAuth(YC_IAM_TOKEN.strip()))
+        model = sdk.models.completions("yandexgpt-lite")
+    else:
+        model = None
+
     st.markdown(
         f":green-badge[:material/check_circle: Сайт заполнен: {filled_site}] :red-badge[:material/block: Сайт пропущен: {missing_site}]"
     )
@@ -72,17 +81,36 @@ with col1:
 with col2:
     md_text = st.session_state.get('jina_md', '')
     st.text_area('Markdown от Jina Reader API', value=md_text, height=350, disabled=True)
+    # st.markdown(st.session_state.get('jina_md', ''))  # Можно раскомментировать для Markdown, но без скролла
     # Примерный лимит контекста для yandexgpt-lite (8000 символов)
-    context_limit = 8000
     # Обрезаем по 'Links/Buttons:' если есть
     links_phrase = 'Links/Buttons:'
     if links_phrase in md_text:
-        md_len = len(md_text.split(links_phrase, 1)[0])
+        md_clean = md_text.split(links_phrase, 1)[0]
     else:
-        md_len = len(md_text)
-    badge_color = "orange" if md_len <= context_limit else "red"
-    st.badge(f"Символов до раздела Links/Buttons: {md_len}", color=badge_color, icon=":material/link:")
-    # st.markdown(st.session_state.get('jina_md', ''))  # Можно раскомментировать для Markdown, но без скролла
+        md_clean = md_text
+    if md_clean and model:
+        tokens_count = len(model.tokenize(md_text))
+        col_a, col_b, col_c = st.columns([0.6, 0.2, 0.2], gap=None)
+        with col_a:
+            st.badge(
+                f"Токенов до раздела\nLinks/Buttons: {tokens_count}",
+                color='orange',
+                icon=":material/link:"
+            )
+        with col_b:
+            st.badge(
+                "YGPT-Lite",
+                color='green' if tokens_count <= 32000 else 'red',
+                icon=":material/check_circle:" if tokens_count <= 32000 else ':material/block:'
+            )
+        with col_c:
+            st.badge(
+                "Qwen3 235B",
+                color='green' if tokens_count <= 256000 else 'red',
+                icon=":material/check_circle:" if tokens_count <= 256000 else ':material/block:'
+            )
+
 
 st.divider()
 
@@ -90,8 +118,6 @@ st.divider()
 col3, col4 = st.columns([2,3])
 
 with col3:
-    folder_id = st.text_input('YC_FOLDER_ID', value='b1g1u3uo289nf62q3n08')
-    iam_token = st.text_input('YC_IAM_TOKEN', value='', type='password')
     def_sys = "Ты — полезный ассистент, который отвечает на вопросы о деятельности компании в четком и структурированном виде."
     def_user = "Чем занимается эта компания?\n---\n{desc}"
     sys_prompt = st.text_area('System Prompt', value=def_sys, height=68)
@@ -106,8 +132,6 @@ with col3:
             error_msg = 'Нет валидного описания сайта для отправки в YandexGPT.'
         else:
             try:
-                sdk = YCloudML(folder_id=folder_id.strip(), auth=IAMTokenAuth(iam_token.strip()))
-                model = sdk.models.completions("yandexgpt-lite")
                 user_prompt_filled = user_prompt.replace('{desc}', desc)
                 result = model.configure(temperature=1).run([
                     {"role": "system", "text": sys_prompt},
