@@ -39,26 +39,40 @@ with col1:
         model = None
 
     st.markdown(
-        f":green-badge[:material/check_circle: Сайт заполнен: {filled_site}] :red-badge[:material/block: Сайт пропущен: {missing_site}]"
+        f":green-badge[:material/check_circle: Сайт заполнен: {filled_site}] :gray-badge[:material/do_not_disturb_on: Сайт пропущен: {missing_site}]"
     )
     subset_df = st.session_state['subset_df']
     site_options = [f"{row['Name']} | {row['Site']}" for _, row in subset_df.iterrows()]
-    selected_option = st.selectbox('Выберите сайт из списка:', [''] + site_options, key='dropdown_site')
+    st.markdown('<span style="font-size:14px;">Выберите сайт из списка:</span>', unsafe_allow_html=True)
+    col_dropdown, col_button = st.columns([0.88, 0.12], gap='small')
 
-    # Логика подстановки в site_input только если пользователь не редактировал вручную
+    with col_button:
+        refresh_button = st.button('', icon=':material/refresh:', use_container_width=True)
+        if refresh_button:
+            st.session_state['subset_df'] = filled_df.sample(n=min(10, len(filled_df)), random_state=random.randint(0, 100000))
+            st.session_state['site_input'] = ''
+            st.session_state['last_dropdown_site'] = ''
+            st.session_state['dropdown_site'] = ''  # <-- This resets the selectbox
+
+    with col_dropdown:
+        selected_option = st.selectbox(
+            'Выберите сайт из списка',
+            [''] + site_options,
+            key='dropdown_site',
+            label_visibility="collapsed",
+        )
+
+    # Logic for updating site_input only if a new selection is made
     if selected_option:
         selected_site = selected_option.split('|', 1)[1].strip()
+        # Only update if user hasn't typed manually or if last_dropdown_site matches previous
         if (not st.session_state['site_input']) or (st.session_state['site_input'] == st.session_state['last_dropdown_site']):
             st.session_state['site_input'] = selected_site
         st.session_state['last_dropdown_site'] = selected_site
     else:
         st.session_state['last_dropdown_site'] = ''
-    if st.button('Обновить выборку'):
-        st.session_state['subset_df'] = filled_df.sample(n=min(10, len(filled_df)), random_state=random.randint(0, 100000))
-        st.session_state['site_input'] = ''
-        st.session_state['last_dropdown_site'] = ''
     site = st.text_input('URL сайта', key='site_input')
-    if st.button('В Markdown'):
+    if st.button('В Markdown', type='primary', icon=':material/subdirectory_arrow_right:'):
         if site:
             headers = {
                 "Content-Type": "application/json",
@@ -122,7 +136,7 @@ with col3:
     def_user = "Чем занимается эта компания?\n---\n{desc}"
     sys_prompt = st.text_area('System Prompt', value=def_sys, height=68)
     user_prompt = st.text_area('User Prompt', value=def_user, height=80)
-    if st.button('В описание'):
+    if st.button('В описание', type='primary', icon=':material/subdirectory_arrow_right:'):
         error_msg = None
         gpt_text = ''
         desc = st.session_state.get('jina_md', '')
