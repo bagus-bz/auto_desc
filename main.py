@@ -3,10 +3,25 @@ import pandas as pd
 import requests
 import random
 import time
+import re
 
 import yandex_cloud_ml_sdk
 from yandex_cloud_ml_sdk import YCloudML
 from yandex_cloud_ml_sdk.auth import IAMTokenAuth
+
+# --- Функция для поиска "О компании" страниц ---
+def find_about_links(md_links_section):
+    # Ищем строки вида: - [caption](url)
+    pattern = re.compile(r'- \[(.*?)\]\((.*?)\)', re.IGNORECASE)
+    about_keywords = [
+        'о компании', 'о нас', 'about', 'about us', 'about-company', 'aboutus', 'about_company', 'aboutus', 'about.html', 'about.php', 'about.aspx', 'aboutus.html', 'aboutus.php', 'aboutus.aspx'
+    ]
+    results = []
+    for match in pattern.finditer(md_links_section):
+        caption, url = match.group(1).strip().lower(), match.group(2).strip().lower()
+        if any(kw in caption for kw in about_keywords) or any(kw in url for kw in about_keywords):
+            results.append({'caption': match.group(1), 'url': match.group(2)})
+    return results
 
 st.set_page_config(page_title="Генератор описаний поставщика", layout="wide", page_icon="🤖")
 
@@ -73,35 +88,78 @@ with col1:
     else:
         st.session_state['last_dropdown_site'] = ''
     site = st.text_input('URL сайта', key='site_input')
-    if st.button('В Markdown', type='primary', icon=':material/subdirectory_arrow_right:'):
-        if site:
-            headers = {
-                "Content-Type": "application/json",
-                "X-Engine": "direct",
-                "X-Md-Link-Style": "referenced",
-                "X-Retain-Images": "none",
-                "X-With-Links-Summary": "all"
-            }
-            data = {"url": site}
-            try:
-                start_time = time.perf_counter()
-                resp = requests.post("https://r.jina.ai/", headers=headers, json=data, timeout=10)
-                resp.raise_for_status()
-                md_text = resp.text
-                elapsed = time.perf_counter() - start_time
-                st.session_state['jina_md'] = md_text
-                st.session_state['jina_time'] = elapsed
-            except Exception as e:
-                st.session_state['jina_md'] = f"Ошибка: {e}"
-                st.session_state['jina_time'] = None
-        else:
-            st.session_state['jina_md'] = 'Пожалуйста, введите URL сайта.'
-            st.session_state['jina_time'] = None
+    col_md, col_about = st.columns([0.4, 0.6], gap='small')
+    with col_md:
+        md_button = st.button('В Markdown', type='primary', icon=':material/subdirectory_arrow_right:')
+    with col_about:
+        about_checkbox = st.checkbox('Искать "О компании"', key='about_checkbox')
 
+# --- Логика для обычного Markdown ---
+if md_button:
+    if site:
+        headers = {
+            "Content-Type": "application/json",
+            "X-Engine": "direct",
+            "X-Md-Link-Style": "referenced",
+            "X-Retain-Images": "none",
+            "X-With-Links-Summary": "all"
+        }
+        data = {"url": site}
+        try:
+            start_time = time.perf_counter()
+            resp = requests.post("https://r.jina.ai/", headers=headers, json=data, timeout=10)
+            resp.raise_for_status()
+            md_text = resp.text
+            elapsed = time.perf_counter() - start_time
+
+            about_found = False
+            # --- Check for about page if checkbox is active ---
+            if about_checkbox:
+                links_phrase = 'Links/Buttons:'
+                if links_phrase in md_text:
+                    md_links_section = md_text.split(links_phrase, 1)[1]
+                else:
+                    md_links_section = ''
+                about_links = find_about_links(md_links_section)
+                if about_links:
+                    # Fetch about page markdown
+                    about_url = about_links[0]['url']
+                    about_data = {"url": about_url}
+                    about_start = time.perf_counter()
+                    about_resp = requests.post("https://r.jina.ai/", headers=headers, json=about_data, timeout=10)
+                    about_resp.raise_for_status()
+                    md_text = about_resp.text
+                    elapsed = time.perf_counter() - about_start  # Optionally, use about page timing
+                    about_found = True
+
+            st.session_state['jina_md'] = md_text
+            st.session_state['jina_time'] = elapsed
+            st.session_state['about_found'] = about_found
+            st.rerun()
+        except Exception as e:
+            st.session_state['jina_md'] = f"Ошибка: {e}"
+            st.session_state['jina_time'] = None
+            st.session_state['about_found'] = False
+            st.rerun()
+    else:
+        st.session_state['jina_md'] = 'Пожалуйста, введите URL сайта.'
+        st.session_state['jina_time'] = None
+        st.session_state['about_found'] = False
+        st.rerun()
+
+# --- col2: Markdown output, badges, and about-page button ---
 with col2:
     md_text = st.session_state.get('jina_md', '')
     st.text_area('Markdown от Jina Reader API', value=md_text, height=350, disabled=True)
     jina_time = st.session_state.get('jina_time', None)
+    # --- Получаем секцию Links/Buttons ---
+    links_phrase = 'Links/Buttons:'
+    if links_phrase in md_text:
+        md_links_section = md_text.split(links_phrase, 1)[1]
+    else:
+        md_links_section = ''
+    # --- Ищем "О компании" страницы ---
+    about_links = find_about_links(md_links_section)
     links_phrase = 'Links/Buttons:'
     if links_phrase in md_text:
         md_clean = md_text.split(links_phrase, 1)[0]
@@ -109,7 +167,7 @@ with col2:
         md_clean = md_text
     if md_clean and model:
         tokens_count = len(model.tokenize(md_text))
-        col_timer, col_tokens, col_ygpt, col_qwen = st.columns([0.15, 0.45, 0.2, 0.2], gap='small')
+        col_timer, col_tokens, col_ygpt, col_qwen = st.columns([0.15, 0.2, 0.2, 0.45], gap='small')
         with col_timer:
             if jina_time is not None:
                 st.badge(
@@ -118,7 +176,7 @@ with col2:
                 )
         with col_tokens:
             st.badge(
-                f"Токенов до раздела\nLinks/Buttons: {tokens_count}",
+                f"{tokens_count} токенов",
                 color='orange',
                 icon=":material/link:"
             )
@@ -134,7 +192,6 @@ with col2:
                 color='green' if tokens_count <= 256000 else 'red',
                 icon=":material/check_circle:" if tokens_count <= 256000 else ':material/block:'
             )
-
 
 st.divider()
 
