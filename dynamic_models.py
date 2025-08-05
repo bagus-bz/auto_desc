@@ -57,16 +57,16 @@ class DynamicModelGenerator:
         self.field_manager = FieldConfigManager()
     
     def _get_python_type(self, field_type: str) -> type:
-        """Преобразует строковый тип в Python тип"""
+        """Преобразует строковый тип в Python тип (всегда Optional)"""
         type_mapping = {
-            "text": str,
+            "text": Optional[str],
             "number": Optional[float],
             "integer": Optional[int],
-            "boolean": bool,
-            "list": List[str],
-            "dict": Dict[str, Any]
+            "boolean": Optional[bool],
+            "list": Optional[List[str]],
+            "dict": Optional[Dict[str, Any]]
         }
-        return type_mapping.get(field_type, str)
+        return type_mapping.get(field_type, Optional[str])
     
     def _create_field_annotation(self, field_config: Dict[str, Any]) -> tuple:
         """Создает аннотацию поля для Pydantic модели"""
