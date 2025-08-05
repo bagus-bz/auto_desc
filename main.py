@@ -493,14 +493,9 @@ def main():
                     )
 
             with st.expander('Ответ от YandexGPT (JSON)', expanded=False):
-                st.text_area(
-                    "Ответ от YandexGPT",
-                    value=st.session_state.get('gpt_resp', ''),
-                    height=410,
-                    key="gpt_response",
-                    disabled=True,
-                    help="",
-                    label_visibility="collapsed"
+                st.code(
+                    st.session_state.get('gpt_resp', ''),
+                    language='json',
                 )
 
 if __name__ == "__main__":
