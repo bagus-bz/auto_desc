@@ -135,11 +135,8 @@ def main():
         else:
             st.session_state['last_dropdown_site'] = ''
         site = st.text_input('URL сайта', key='site_input')
-        col_md, col_about = st.columns([0.4, 0.6], gap='small')
-        with col_md:
-            md_button = st.button('В Markdown', type='primary', icon=':material/subdirectory_arrow_right:', key='markdown_button')
-        with col_about:
-            about_checkbox = st.checkbox('Искать "О компании"', key='about_checkbox')
+        about_checkbox = st.checkbox('Искать "О компании"', key='about_checkbox')
+        md_button = st.button('В Markdown', type='primary', icon=':material/subdirectory_arrow_right:', key='markdown_button')
 
     # --- Логика для обычного Markdown ---
     if md_button:
@@ -298,13 +295,13 @@ def main():
                 # Кнопки управления полями
                 fcol_add, fcol_reset, fcol_export = st.columns(3)
                 with fcol_add:
-                    if st.button("Добавить поле", type="secondary", key="add_field_button"):
+                    if st.button("Добавить поле", type="secondary", key="add_field_button", use_container_width=True):
                         st.session_state['show_add_field'] = True
                 with fcol_reset:
-                    if st.button("Сбросить", type="secondary", key="reset_to_default_button"):
+                    if st.button("Сбросить", type="secondary", key="reset_to_default_button", use_container_width=True):
                         reset_to_default()
                 with fcol_export:
-                    if st.button("Экспорт", type="secondary", key="export_config_button"):
+                    if st.button("Экспорт", type="secondary", key="export_config_button", use_container_width=True):
                         config_json = json.dumps(st.session_state['custom_fields'], ensure_ascii=False, indent=2)
                         st.download_button(
                             label="Скачать JSON",
@@ -495,7 +492,7 @@ def main():
                         icon=":material/link:"
                     )
 
-            with st.expander('Ответ от YandexGPT (raw)', expanded=False):
+            with st.expander('Ответ от YandexGPT (JSON)', expanded=False):
                 st.text_area(
                     "Ответ от YandexGPT",
                     value=st.session_state.get('gpt_resp', ''),
